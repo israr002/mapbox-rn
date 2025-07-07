@@ -28,7 +28,8 @@ export interface PaddockInfo {
 }
 
 export type DrawingMode = 'farm' | 'paddock';
-export type AppState = 'initial' | 'drawing-farm' | 'farm-completed' | 'editing' | 'drawing-paddock';
+export type AppState = 'initial' | 'drawing-farm' | 'farm-completed' | 'paddock-mode' | 'drawing-paddock' | 'livestock-mode' | 'heatmap-mode' | 'editing';
+export type BottomMenuMode = 'paddock' | 'livestock' | 'heatmap';
 
 export type PolygonCollection = FeatureCollection<Polygon>;
 export type PointCollection = FeatureCollection<Point>; 

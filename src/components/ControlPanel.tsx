@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { AppState, PolygonCollection } from '../utils/types';
+import { AppState, PolygonCollection, BottomMenuMode } from '../utils/types';
 import { getFarmBoundaries, getPaddocksForFarm } from '../utils/mapUtils';
+import { clearAllData, getStorageInfo } from '../utils/storage';
 import { COLORS } from '../constants';
 
 interface ControlPanelProps {
@@ -49,12 +50,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         return selectedPolygonId 
           ? 'Drag red points to resize | Haptic feedback on drag' 
           : 'Tap on a polygon to select it';
-      case 'farm-completed':
-        return 'Farm boundary ready | Choose to edit farm or add paddocks';
       default:
         return '';
     }
   };
+
+  // Hide control panel when farm is completed - floating menu takes over
+  if (appState === 'paddock-mode' || appState === 'livestock-mode' || appState === 'heatmap-mode') {
+    return null;
+  }
 
   return (
     <View style={styles.controlPanel}>
@@ -78,20 +82,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             </TouchableOpacity>
           </>
         )}
-        
-        {appState === 'farm-completed' && (
-          <>
-            <TouchableOpacity style={styles.editButton} onPress={onEnterEditMode}>
-              <Text style={styles.buttonText}>Edit/Resize</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.paddockButton} onPress={onStartDrawingPaddock}>
-              <Text style={styles.buttonText}>Add Paddock</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.clearButton} onPress={onClearAll}>
-              <Text style={styles.buttonText}>Clear All</Text>
-            </TouchableOpacity>
-          </>
-        )}
+
         
         {appState === 'editing' && (
           <>
@@ -131,6 +122,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             Paddocks in farm: {selectedFarmPaddockCount}
           </Text>
         )}
+      </View>
+
+      {/* TEMPORARY: Storage Testing Button - REMOVE LATER */}
+      <View style={styles.tempButtonContainer}>
+        <TouchableOpacity 
+          style={styles.tempStorageButton} 
+          onPress={() => {
+            console.log('🔍 BEFORE CLEAR - Storage Info:', getStorageInfo());
+            clearAllData();
+            console.log('🗑️ MMKV Storage Cleared for Testing');
+            console.log('🔍 AFTER CLEAR - Storage Info:', getStorageInfo());
+          }}
+        >
+          <Text style={styles.tempButtonText}>🗑️ Clear MMKV (Test)</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -216,6 +222,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.LIGHT_TEXT,
     marginBottom: 2,
+  },
+  // TEMPORARY STYLES - REMOVE LATER
+  tempButtonContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.BORDER,
+  },
+  tempStorageButton: {
+    backgroundColor: '#ff4444',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  tempButtonText: {
+    color: COLORS.WHITE,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

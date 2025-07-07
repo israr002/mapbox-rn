@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Modal,
   View,
@@ -11,6 +11,8 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { PaddockInfo } from '../utils/types';
 import { PADDOCK_PURPOSES, COLORS } from '../constants';
@@ -30,11 +32,15 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
   onSave,
   onCancel,
 }) => {
+  const capacityInputRef = useRef<TextInput>(null);
+  const notesInputRef = useRef<TextInput>(null);
+
   const handleSave = () => {
     if (!paddockInfo.name.trim()) {
       Alert.alert('Error', 'Please enter a paddock name.');
       return;
     }
+    Keyboard.dismiss();
     onSave();
   };
 
@@ -50,6 +56,21 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
     onCancel();
   };
 
+  const handleNameSubmit = () => {
+    capacityInputRef.current?.focus();
+  };
+
+  const handleCapacitySubmit = () => {
+    notesInputRef.current?.focus();
+  };
+
+  const handleNotesSubmit = () => {
+    Keyboard.dismiss();
+    if (paddockInfo.name.trim()) {
+      handleSave();
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -59,9 +80,13 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
     >
       <TouchableWithoutFeedback onPress={handleBackdropPress}>
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <SafeAreaView style={styles.modalWrapper}>
-              <View style={styles.modalContainer}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardAvoidingView}
+          >
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.modalWrapper}>
+                <View style={styles.modalContainer}>
                 {/* Header */}
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Paddock Information</Text>
@@ -88,6 +113,9 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
                       maxLength={50}
                       autoCapitalize="words"
                       autoCorrect={false}
+                      returnKeyType="next"
+                      onSubmitEditing={handleNameSubmit}
+                      blurOnSubmit={false}
                     />
                   </View>
 
@@ -119,6 +147,7 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
                   <View style={styles.fieldContainer}>
                     <Text style={styles.fieldLabel}>Capacity (Animals)</Text>
                     <TextInput
+                      ref={capacityInputRef}
                       style={styles.textInput}
                       value={paddockInfo.capacity?.toString() || ''}
                       onChangeText={(text) =>
@@ -128,6 +157,9 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
                       placeholderTextColor={COLORS.SECONDARY_TEXT}
                       keyboardType="numeric"
                       maxLength={10}
+                      returnKeyType="next"
+                      onSubmitEditing={handleCapacitySubmit}
+                      blurOnSubmit={false}
                     />
                   </View>
 
@@ -135,6 +167,7 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
                   <View style={styles.fieldContainer}>
                     <Text style={styles.fieldLabel}>Notes</Text>
                     <TextInput
+                      ref={notesInputRef}
                       style={[styles.textInput, styles.textArea]}
                       value={paddockInfo.notes}
                       onChangeText={(text) => updatePaddockInfo('notes', text)}
@@ -144,6 +177,8 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
                       numberOfLines={3}
                       maxLength={200}
                       textAlignVertical="top"
+                      returnKeyType="done"
+                      onSubmitEditing={handleNotesSubmit}
                     />
                   </View>
                 </ScrollView>
@@ -164,9 +199,10 @@ const PaddockInfoModal: React.FC<PaddockInfoModalProps> = ({
                     <Text style={styles.saveButtonText}>Save Paddock</Text>
                   </TouchableOpacity>
                 </View>
+                              </View>
               </View>
-            </SafeAreaView>
-          </TouchableWithoutFeedback>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </View>
       </TouchableWithoutFeedback>
     </Modal>
@@ -179,9 +215,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   modalWrapper: {
-    width: '90%',
+    width: '100%',
     maxWidth: 400,
     maxHeight: '90%',
   },

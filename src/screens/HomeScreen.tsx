@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
   View,
-  Text,
   Alert,
   Vibration,
   Platform,
@@ -11,7 +10,7 @@ import {
 import MapboxGL, { MapView, ShapeSource, FillLayer, LineLayer, PointAnnotation, CircleLayer, SymbolLayer } from '@rnmapbox/maps';
 import Config from 'react-native-config';
 
-import { ControlPanel, PaddockInfoModal } from '../components';
+import { ControlPanel, PaddockInfoModal, FloatingBottomMenu, AddPaddockButton } from '../components';
 import { 
   AppState, 
   DrawingMode, 
@@ -20,13 +19,25 @@ import {
   PointCollection, 
   PaddockInfo, 
   PolygonFeature,
+  BottomMenuMode
+} from '../utils/types';
+import {
   isPointInPolygon, 
   isPaddockWithinFarm, 
   getFarmBoundaries, 
   getPaddocksForFarm, 
   getPolygonVertices, 
-  createClosedPolygon 
-} from '../utils';
+  createClosedPolygon,
+  addInitialsToPolygons
+} from '../utils/mapUtils';
+import {
+  loadAllData,
+  saveCompletedPolygons,
+  saveSelectedFarmId,
+  saveAppState,
+  saveBottomMenuMode,
+  clearAllData
+} from '../utils/storage';
 import { MAP_CONFIG, COLORS } from '../constants';
 import type { Polygon } from 'geojson';
 
@@ -64,6 +75,66 @@ const HomeScreen: React.FC = () => {
     notes: ''
   });
 
+  // Bottom menu state
+  const [bottomMenuMode, setBottomMenuMode] = useState<BottomMenuMode | null>(null);
+
+  // Load data from storage on component mount
+  useEffect(() => {
+    const loadStoredData = () => {
+      try {
+        const storedData = loadAllData();
+        
+        if (storedData.completedPolygons.features.length > 0) {
+          setCompletedPolygons(storedData.completedPolygons);
+          console.log('📱 Loaded', storedData.completedPolygons.features.length, 'polygons from storage');
+        }
+        
+        if (storedData.selectedFarmId) {
+          setSelectedFarmId(storedData.selectedFarmId);
+          console.log('📱 Restored selected farm:', storedData.selectedFarmId);
+        }
+        
+        if (storedData.appState !== 'initial') {
+          setAppState(storedData.appState);
+          console.log('📱 Restored app state:', storedData.appState);
+        }
+        
+        if (storedData.bottomMenuMode) {
+          setBottomMenuMode(storedData.bottomMenuMode);
+          console.log('📱 Restored bottom menu mode:', storedData.bottomMenuMode);
+        }
+        
+        console.log('✅ All data loaded from storage. Last saved:', storedData.lastSaved);
+      } catch (error) {
+        console.error('❌ Error loading stored data:', error);
+      }
+    };
+
+    loadStoredData();
+  }, []);
+
+  // Auto-save whenever polygons change
+  useEffect(() => {
+    if (completedPolygons.features.length > 0) {
+      saveCompletedPolygons(completedPolygons);
+    }
+  }, [completedPolygons]);
+
+  // Auto-save app state changes
+  useEffect(() => {
+    saveAppState(appState);
+  }, [appState]);
+
+  // Auto-save selected farm ID
+  useEffect(() => {
+    saveSelectedFarmId(selectedFarmId);
+  }, [selectedFarmId]);
+
+  // Auto-save bottom menu mode
+  useEffect(() => {
+    saveBottomMenuMode(bottomMenuMode);
+  }, [bottomMenuMode]);
+
   const startDrawingFarm = () => {
     setAppState('drawing-farm');
     setDrawingMode('farm');
@@ -99,7 +170,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const exitEditMode = () => {
-    setAppState('farm-completed');
+    setAppState('paddock-mode');
     setIsEditMode(false);
     setSelectedPolygonId(null);
   };
@@ -108,7 +179,7 @@ const HomeScreen: React.FC = () => {
     if (appState === 'drawing-farm') {
       setAppState('initial');
     } else if (appState === 'drawing-paddock') {
-      setAppState('farm-completed');
+      setAppState('paddock-mode'); // Return to paddock mode
     }
     setCurrentPolygon([]);
   };
@@ -147,11 +218,12 @@ const HomeScreen: React.FC = () => {
     // Auto-select the completed farm
     setSelectedFarmId(polygonId);
     setCurrentPolygon([]);
-    setAppState('farm-completed');
+    setAppState('paddock-mode'); // Directly go to paddock mode
+    setBottomMenuMode('paddock'); // Default to paddock mode
     
     Alert.alert(
       'Farm Boundary Created!',
-      `Farm boundary completed with ${currentPolygon.length} points. You can now add paddocks or edit the boundary.`,
+      `Farm boundary completed with ${currentPolygon.length} points. You can now add paddocks using the + button.`,
       [{ text: 'OK' }]
     );
   };
@@ -226,7 +298,7 @@ const HomeScreen: React.FC = () => {
     }));
 
     setCurrentPolygon([]);
-    setAppState('farm-completed');
+    setAppState('paddock-mode');
     setShowPaddockModal(false);
     
     Alert.alert(
@@ -240,22 +312,55 @@ const HomeScreen: React.FC = () => {
     setShowPaddockModal(false);
   };
 
+  const handleBottomMenuSelect = (mode: BottomMenuMode) => {
+    setBottomMenuMode(mode);
+    switch (mode) {
+      case 'paddock':
+        setAppState('paddock-mode');
+        break;
+      case 'livestock':
+        setAppState('livestock-mode');
+        break;
+      case 'heatmap':
+        setAppState('heatmap-mode');
+        break;
+    }
+  };
+
+  const handleAddPaddock = () => {
+    setAppState('drawing-paddock');
+    setDrawingMode('paddock');
+    setSelectedPolygonId(null);
+    setCurrentPolygon([]);
+    Alert.alert(
+      'Draw Paddock',
+      'Tap on the map to add points for your paddock within the farm boundary.',
+      [{ text: 'OK' }]
+    );
+  };
+
   const clearAll = () => {
     Alert.alert(
       'Clear All',
-      'Are you sure you want to clear the farm and all paddocks?',
+      'Are you sure you want to clear the farm and all paddocks? This will also remove all saved data.',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Clear', 
           style: 'destructive',
           onPress: () => {
+            // Clear all state
             setCompletedPolygons({ type: 'FeatureCollection', features: [] });
             setCurrentPolygon([]);
             setAppState('initial');
             setIsEditMode(false);
             setSelectedPolygonId(null);
             setSelectedFarmId(null);
+            setBottomMenuMode(null);
+            
+            // Clear storage
+            clearAllData();
+            console.log('🗑️ Cleared all data from storage');
           }
         }
       ]
@@ -371,6 +476,9 @@ const HomeScreen: React.FC = () => {
 
   const selectedPolygonVertices = getPolygonVertices(completedPolygons, selectedPolygonId || '');
 
+  // Prepare polygons with initials for map display
+  const polygonsWithInitials = addInitialsToPolygons(completedPolygons);
+
   return (
     <SafeAreaView style={styles.container}>
       <ControlPanel
@@ -397,6 +505,19 @@ const HomeScreen: React.FC = () => {
         onCancel={handleCancelPaddock}
       />
 
+      {/* Floating Bottom Menu */}
+      <FloatingBottomMenu
+        visible={appState === 'paddock-mode' || appState === 'livestock-mode' || appState === 'heatmap-mode'}
+        activeMode={bottomMenuMode}
+        onModeSelect={handleBottomMenuSelect}
+      />
+
+      {/* Add Paddock Button */}
+      <AddPaddockButton
+        visible={appState === 'paddock-mode'}
+        onPress={handleAddPaddock}
+      />
+
       {/* Map Container */}
       <View style={styles.mapContainer}>
         <MapView 
@@ -411,7 +532,7 @@ const HomeScreen: React.FC = () => {
 
           {/* Completed Polygons */}
           {completedPolygons.features.length > 0 && (
-            <ShapeSource id="completedPolygons" shape={completedPolygons}>
+            <ShapeSource id="completedPolygons" shape={polygonsWithInitials}>
               <FillLayer
                 id="completedPolygonsFill"
                 style={{
@@ -460,17 +581,17 @@ const HomeScreen: React.FC = () => {
 
           {/* Paddock Name Text */}
           {completedPolygons.features.length > 0 && (
-            <ShapeSource id="paddockLabels" shape={completedPolygons}>
+            <ShapeSource id="paddockLabels" shape={polygonsWithInitials}>
               <SymbolLayer
                 id="paddockNameText"
                 style={{
                   textField: [
                     'case',
                     ['==', ['get', 'type'], 'paddock'],
-                    ['get', 'name'],
+                    ['get', 'initials'],
                     ''
                   ],
-                  textSize: 14,
+                  textSize: 16,
                   textColor: COLORS.PRIMARY_TEXT,
                   textHaloColor: COLORS.WHITE,
                   textHaloWidth: 2,

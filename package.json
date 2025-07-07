@@ -14,7 +14,8 @@
     "@rnmapbox/maps": "^10.1.39",
     "react": "19.1.0",
     "react-native": "0.80.1",
-    "react-native-config": "^1.5.5"
+    "react-native-config": "^1.5.5",
+    "react-native-mmkv": "^3.3.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
