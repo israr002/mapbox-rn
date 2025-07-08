@@ -1,4 +1,4 @@
-import { PolygonFeature, PolygonCollection } from './types';
+import { PolygonFeature, PolygonCollection, PointCollection } from './types';
 
 // Check if point is inside polygon using ray casting algorithm
 export const isPointInPolygon = (point: number[], polygon: number[][]): boolean => {
@@ -186,4 +186,144 @@ export const createLivestockAnnotations = (
         status: 'healthy' as import('./types').LivestockStatus
       };
     });
+};
+
+/**
+ * Generate livestock density heatmap data based on paddock livestock data
+ */
+export const generateHeatmapData = (polygons: PolygonCollection, livestockData: import('./types').LivestockData[]): import('./types').HeatmapDataPoint[] => {
+  const farmBoundaries = getFarmBoundaries(polygons);
+  const paddocks = polygons.features.filter(f => f.properties?.type === 'paddock');
+  
+  if (farmBoundaries.length === 0 || paddocks.length === 0) return [];
+
+  const heatmapPoints: import('./types').HeatmapDataPoint[] = [];
+  
+  // Create livestock map for quick lookup
+  const livestockMap = new Map(livestockData.map(data => [data.paddockId, data]));
+  
+  // Get farm boundary coordinates
+  const farmBoundary = farmBoundaries[0];
+  const farmCoords = farmBoundary.geometry.coordinates[0];
+  
+  // Calculate bounding box of farm
+  const lons = farmCoords.map(coord => coord[0]);
+  const lats = farmCoords.map(coord => coord[1]);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  
+  // Generate grid of points within farm boundary
+  const gridSize = 25; // Dense grid for smooth heatmap
+  const lonStep = (maxLon - minLon) / gridSize;
+  const latStep = (maxLat - minLat) / gridSize;
+  
+  for (let i = 0; i <= gridSize; i++) {
+    for (let j = 0; j <= gridSize; j++) {
+      const lon = minLon + (i * lonStep);
+      const lat = minLat + (j * latStep);
+      
+      // Check if point is within farm boundary
+      if (isPointInPolygon([lon, lat], farmCoords)) {
+        let livestockDensity = 0;
+        let totalInfluence = 0;
+        
+        // Calculate livestock density based on nearby paddocks
+        for (const paddock of paddocks) {
+          const paddockCoords = paddock.geometry.coordinates[0];
+          const paddockCentroid = getPolygonCentroid(paddockCoords);
+          const livestock = livestockMap.get(paddock.properties!.id);
+          
+          if (livestock && livestock.count > 0) {
+            // Calculate distance from point to paddock centroid
+            const distance = Math.sqrt(
+              Math.pow(lon - paddockCentroid[0], 2) + Math.pow(lat - paddockCentroid[1], 2)
+            );
+            
+            // Check if point is within this paddock
+            const isInPaddock = isPointInPolygon([lon, lat], paddockCoords);
+            
+            if (isInPaddock) {
+              // High density within the paddock based on livestock count
+              const paddockDensity = Math.min(100, livestock.count / 10); // Scale: 10 cattle = 100% density
+              
+              // Add variation within paddock (areas near water/feed are higher density)
+              const centerDistance = Math.sqrt(
+                Math.pow(lon - paddockCentroid[0], 2) + Math.pow(lat - paddockCentroid[1], 2)
+              );
+              
+              // Cattle prefer areas closer to center (water/shelter)
+              const centerInfluence = Math.exp(-centerDistance * 500000); // Scale for coordinate system
+              const variation = 30 * Math.sin(i * 0.3) * Math.cos(j * 0.4); // Natural movement patterns
+              
+              livestockDensity = paddockDensity * (0.7 + 0.3 * centerInfluence) + variation;
+              totalInfluence = 1;
+              break; // Point is in this paddock, no need to check others
+            } else {
+              // Influence from nearby paddocks (cattle may graze near borders)
+              const influence = Math.exp(-distance * 800000); // Nearby influence
+              if (influence > 0.01) {
+                const paddockDensity = Math.min(100, livestock.count / 10);
+                livestockDensity += paddockDensity * influence * 0.3; // Reduced influence outside paddock
+                totalInfluence += influence;
+              }
+            }
+          }
+        }
+        
+        // Normalize and add some natural variation
+        if (totalInfluence > 0) {
+          livestockDensity = livestockDensity / totalInfluence;
+          
+          // Add natural grazing patterns
+          const grazingPattern = 15 * Math.sin(i * 0.6 + j * 0.3) * Math.cos(i * 0.4);
+          livestockDensity += grazingPattern;
+          
+          // Clamp to realistic range
+          livestockDensity = Math.max(0, Math.min(100, livestockDensity));
+          
+          heatmapPoints.push({
+            id: `heatmap_${i}_${j}`,
+            coordinates: [lon, lat],
+            value: Math.round(livestockDensity),
+            type: 'livestock-density'
+          });
+        } else {
+          // Areas with no livestock influence (very low density)
+          heatmapPoints.push({
+            id: `heatmap_${i}_${j}`,
+            coordinates: [lon, lat],
+            value: Math.round(Math.random() * 5), // Very low random values
+            type: 'livestock-density'
+          });
+        }
+      }
+    }
+  }
+  
+  return heatmapPoints;
+};
+
+/**
+ * Create GeoJSON for heatmap visualization
+ */
+export const createHeatmapGeoJSON = (heatmapData: import('./types').HeatmapDataPoint[]): PointCollection => {
+  return {
+    type: 'FeatureCollection',
+    features: heatmapData.map(point => ({
+      type: 'Feature',
+      properties: {
+        id: point.id,
+        value: point.value,
+        type: point.type,
+        // Normalize value to 0-1 for heatmap intensity
+        intensity: point.value / 100
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: point.coordinates
+      }
+    }))
+  };
 }; 

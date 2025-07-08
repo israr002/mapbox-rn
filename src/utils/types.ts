@@ -48,6 +48,16 @@ export interface LivestockAnnotation {
   status: LivestockStatus;
 }
 
+// Heatmap types
+export interface HeatmapDataPoint {
+  id: string;
+  coordinates: number[];
+  value: number; // 0-100 scale
+  type: HeatmapType;
+}
+
+export type HeatmapType = 'livestock-density' | 'grazing-intensity' | 'pasture-health' | 'water-access';
+
 export type DrawingMode = 'farm' | 'paddock';
 export type AppState = 'initial' | 'drawing-farm' | 'farm-completed' | 'paddock-mode' | 'drawing-paddock' | 'livestock-mode' | 'heatmap-mode' | 'editing';
 export type BottomMenuMode = 'paddock' | 'livestock' | 'heatmap';

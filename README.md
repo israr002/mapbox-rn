@@ -1,97 +1,146 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# RNMapbox - Farm Management Tool
 
-# Getting Started
+A React Native application for farm boundary mapping, paddock management, and livestock tracking using Mapbox GL.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## 🎥 Demo Video
 
-## Step 1: Start Metro
+Watch the application in action: [**View Demo**](https://www.loom.com/share/edef5944ee92414b995bbdd728e3d4ef)
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## 🚀 Features
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### Core Mapping Features
+- **Farm Boundary Drawing**: Create and edit farm boundaries by tapping points on the map
+- **Paddock Management**: Draw paddocks within farm boundaries with validation
+- **Interactive Editing**: Drag vertices to resize polygons with haptic feedback
+- **Geospatial Validation**: Ensures paddocks are contained within farm boundaries
 
-```sh
-# Using npm
-npm start
+### Livestock Management
+- **Livestock Annotations**: Add and manage livestock markers (cattle, sheep)
+- **Status Tracking**: Track livestock health status with color-coded indicators
+- **Count Management**: Monitor livestock counts per paddock
 
-# OR using Yarn
-yarn start
+### Data Visualization
+- **Heatmap View**: Visualize data density across farm areas
+- **Legend Integration**: Interactive legends for heatmap interpretation
+- **Multi-layered Display**: Toggle between different view modes
+
+### Data Persistence
+- **MMKV Storage**: Fast, secure local data storage
+- **Auto-save**: Automatic saving of all changes
+
+## 🛠️ Tech Stack
+
+- **React Native** - Cross-platform mobile development
+- **TypeScript** - Type-safe JavaScript
+- **Mapbox GL** - Advanced mapping and geospatial features
+- **MMKV** - High-performance key-value storage
+- **React Native Config** - Environment configuration
+- **GeoJSON** - Geospatial data format
+
+## 📱 Prerequisites
+
+- Node.js (v16 or higher)
+- React Native CLI
+- Xcode (for iOS development)
+- Android Studio (for Android development)
+- CocoaPods (for iOS dependencies)
+
+## 🔧 Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd RNMapbox
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure Mapbox Access Token**
+   - Create a `.env` file in the root directory
+   - Add your Mapbox access token:
+     ```
+     MAPBOX_ACCESS_TOKEN=your_mapbox_token_here
+     ```
+
+4. **iOS Setup**
+   ```bash
+   cd ios && pod install && cd ..
+   ```
+
+5. **Android Setup**
+   - Ensure Android SDK is configured
+   - Update local.properties if needed
+
+## 🚀 Running the Application
+
+### Development Mode
+
+**iOS:**
+```bash
+npx react-native run-ios
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+**Android:**
+```bash
+npx react-native run-android
 ```
 
-### iOS
+### Building for Production
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+**iOS:**
+```bash
+cd ios
+xcodebuild -workspace RNMapbox.xcworkspace -scheme RNMapbox -configuration Release
 ```
 
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
+**Android:**
+```bash
+cd android
+./gradlew assembleRelease
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## 📖 Usage Guide
 
-```sh
-# Using npm
-npm run ios
+### Getting Started
 
-# OR using Yarn
-yarn ios
-```
+1. **Create Farm Boundary**
+   - Launch the app and tap "Draw Farm Boundary"
+   - Tap on the map to create boundary points
+   - Tap "Complete Farm" when finished
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+2. **Add Paddocks**
+   - After creating a farm, use the floating menu
+   - Select "Add Paddock" mode
+   - Draw paddocks within the farm boundary
+   - Paddocks must be completely within farm boundaries
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+3. **Livestock Management**
+   - Switch to "Livestock" mode
+   - Add livestock markers with counts and status
+   - Track different livestock types (cattle, sheep)
 
-## Step 3: Modify your app
+4. **View Heatmap**
+   - Switch to "Heatmap" mode
+   - View data density visualization
+   - Use the legend to interpret values
 
-Now that you have successfully run the app, let's make changes!
+### Editing Mode
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+- Tap "Edit" to modify existing polygons
+- Drag vertex handles to resize shapes
+- Haptic feedback confirms vertex manipulation
+- Tap "Done Editing" to save changes
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## 🔧 Configuration
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+## 📱 Platform Support
 
-## Congratulations! :tada:
+- **iOS**: 11.0+
+- **Android**: API 21+
 
-You've successfully run and modified your React Native App. :partying_face:
+---
 
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+**Built with ❤️ using React Native and Mapbox GL**

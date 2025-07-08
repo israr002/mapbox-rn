@@ -13,7 +13,7 @@ export const PADDOCK_PURPOSES = [
 // Map configuration
 export const MAP_CONFIG = {
   CENTER_COORDINATE: [-99.9018, 41.4993], // Nebraska ranch/grazing area
-  ZOOM_LEVEL: 13,
+  ZOOM_LEVEL: 11,
   STYLE_URL: 'mapbox://styles/mapbox/satellite-v9'
 };
 

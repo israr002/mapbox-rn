@@ -10,7 +10,7 @@ import {
 import MapboxGL, { MapView, ShapeSource, FillLayer, LineLayer, PointAnnotation, CircleLayer, SymbolLayer } from '@rnmapbox/maps';
 import Config from 'react-native-config';
 
-import { ControlPanel, PaddockInfoModal, FloatingBottomMenu, AddPaddockButton } from '../components';
+import { ControlPanel, PaddockInfoModal, FloatingBottomMenu, AddPaddockButton, HeatmapLegend } from '../components';
 import { 
   AppState, 
   DrawingMode, 
@@ -21,7 +21,8 @@ import {
   PolygonFeature,
   BottomMenuMode,
   LivestockData,
-  LivestockAnnotation as LivestockAnnotationType
+  LivestockAnnotation as LivestockAnnotationType,
+  HeatmapDataPoint
 } from '../utils/types';
 import {
   isPointInPolygon, 
@@ -32,7 +33,9 @@ import {
   createClosedPolygon,
   addInitialsToPolygons,
   generateMockLivestockData,
-  createLivestockAnnotations
+  createLivestockAnnotations,
+  generateHeatmapData,
+  createHeatmapGeoJSON
 } from '../utils/mapUtils';
 import {
   loadAllData,
@@ -85,6 +88,9 @@ const HomeScreen: React.FC = () => {
   // Livestock state
   const [livestockData, setLivestockData] = useState<LivestockData[]>([]);
   const [livestockAnnotations, setLivestockAnnotations] = useState<LivestockAnnotationType[]>([]);
+
+  // Heatmap state
+  const [heatmapData, setHeatmapData] = useState<HeatmapDataPoint[]>([]);
 
   // Load data from storage on component mount
   useEffect(() => {
@@ -146,11 +152,16 @@ const HomeScreen: React.FC = () => {
   // Generate livestock data when paddocks change
   useEffect(() => {
     const paddocks = completedPolygons.features.filter(f => f.properties?.type === 'paddock');
-    if (paddocks.length > 0 && livestockData.length === 0) {
+    if (paddocks.length > 0) {
+      // Always regenerate livestock data when paddocks change
       const mockData = generateMockLivestockData(completedPolygons);
       setLivestockData(mockData);
+      console.log('Generated livestock data for', paddocks.length, 'paddocks');
+    } else {
+      // Clear livestock data when no paddocks exist
+      setLivestockData([]);
     }
-  }, [completedPolygons, livestockData.length]);
+  }, [completedPolygons]);
 
   // Create livestock annotations when livestock data or polygons change
   useEffect(() => {
@@ -167,6 +178,19 @@ const HomeScreen: React.FC = () => {
         });
       });
       setLivestockAnnotations(annotations);
+    }
+  }, [completedPolygons, livestockData]);
+
+  // Generate heatmap data when farm boundaries or livestock data changes
+  useEffect(() => {
+    const farmBoundaries = completedPolygons.features.filter(f => f.properties?.type === 'farm');
+    if (farmBoundaries.length > 0 && livestockData.length > 0) {
+      const livestockHeatmapData = generateHeatmapData(completedPolygons, livestockData);
+      setHeatmapData(livestockHeatmapData);
+      console.log('Generated livestock density heatmap points:', livestockHeatmapData.length);
+    } else {
+      // Clear heatmap data when no farm or livestock data exists
+      setHeatmapData([]);
     }
   }, [completedPolygons, livestockData]);
 
@@ -394,6 +418,7 @@ const HomeScreen: React.FC = () => {
             setBottomMenuMode(null);
             setLivestockData([]);
             setLivestockAnnotations([]);
+            setHeatmapData([]);
             
             // Clear storage
             clearAllData();
@@ -549,6 +574,9 @@ const HomeScreen: React.FC = () => {
     })
   };
 
+  // Create heatmap data for visualization
+  const heatmapGeoJSON = createHeatmapGeoJSON(heatmapData);
+
   return (
     <SafeAreaView style={styles.container}>
       <ControlPanel
@@ -586,6 +614,11 @@ const HomeScreen: React.FC = () => {
       <AddPaddockButton
         visible={appState === 'paddock-mode'}
         onPress={handleAddPaddock}
+      />
+
+      {/* Heatmap Legend */}
+      <HeatmapLegend
+        visible={appState === 'heatmap-mode'}
       />
 
       {/* Map Container */}
@@ -751,6 +784,140 @@ const HomeScreen: React.FC = () => {
                 }}
               />
             </ShapeSource>
+          )}
+
+          {/* Heatmap Visualization */}
+          {appState === 'heatmap-mode' && heatmapGeoJSON.features.length > 0 && (
+            <>
+              <ShapeSource id="heatmapPoints" shape={heatmapGeoJSON}>
+                <MapboxGL.HeatmapLayer
+                  id="heatmapLayer"
+                  style={{
+                    heatmapWeight: [
+                      'interpolate',
+                      ['linear'],
+                      ['get', 'intensity'],
+                      0, 0,
+                      1, 1
+                    ],
+                    heatmapIntensity: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      8, 1,
+                      12, 2.5,
+                      16, 4
+                    ],
+                    heatmapColor: [
+                      'interpolate',
+                      ['linear'],
+                      ['heatmap-density'],
+                      0, 'rgba(0, 0, 255, 0)',
+                      0.1, 'rgba(0, 100, 255, 0.6)',
+                      0.3, 'rgba(0, 200, 255, 0.7)',
+                      0.5, 'rgba(50, 255, 50, 0.8)',
+                      0.7, 'rgba(255, 255, 0, 0.8)',
+                      0.85, 'rgba(255, 150, 0, 0.9)',
+                      1, 'rgba(255, 0, 0, 1)'
+                    ],
+                    heatmapRadius: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      8, 20,
+                      12, 30,
+                      16, 45
+                    ],
+                    heatmapOpacity: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      8, 0.6,
+                      12, 0.8,
+                      16, 0.9
+                    ]
+                  }}
+                />
+                
+                {/* Data point circles (visible at high zoom) */}
+                <CircleLayer
+                  id="heatmapDataPoints"
+                  style={{
+                    circleRadius: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      12, 0,
+                      14, 4,
+                      16, 8
+                    ],
+                    circleColor: [
+                      'interpolate',
+                      ['linear'],
+                      ['get', 'value'],
+                      0, '#0066FF',
+                      25, '#00CCFF',
+                      50, '#32FF32',
+                      75, '#FFFF00',
+                      85, '#FF9600',
+                      100, '#FF0000'
+                    ],
+                    circleStrokeColor: '#FFFFFF',
+                    circleStrokeWidth: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      12, 0,
+                      14, 1,
+                      16, 2
+                    ],
+                    circleOpacity: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      12, 0,
+                      14, 0.8,
+                      16, 1
+                    ]
+                  }}
+                />
+                
+                {/* Data point values (visible at very high zoom) */}
+                <SymbolLayer
+                  id="heatmapDataValues"
+                  style={{
+                    textField: [
+                      'format',
+                      ['concat', ['get', 'value'], '%'],
+                      {}
+                    ],
+                    textSize: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      14, 0,
+                      15, 9,
+                      16, 11
+                    ],
+                    textColor: '#000000',
+                    textHaloColor: '#FFFFFF',
+                    textHaloWidth: 1.5,
+                    textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                    textAnchor: 'center',
+                    textAllowOverlap: false,
+                    textIgnorePlacement: false,
+                    textOpacity: [
+                      'interpolate',
+                      ['linear'],
+                      ['zoom'],
+                      14, 0,
+                      15, 0.8,
+                      16, 1
+                    ]
+                  }}
+                />
+              </ShapeSource>
+            </>
           )}
 
           {/* Livestock Annotations */}
