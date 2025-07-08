@@ -129,10 +129,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <TouchableOpacity 
           style={styles.tempStorageButton} 
           onPress={() => {
-            console.log('🔍 BEFORE CLEAR - Storage Info:', getStorageInfo());
+            console.log('BEFORE CLEAR - Storage Info:', getStorageInfo());
             clearAllData();
-            console.log('🗑️ MMKV Storage Cleared for Testing');
-            console.log('🔍 AFTER CLEAR - Storage Info:', getStorageInfo());
+            console.log('MMKV Storage Cleared for Testing');
+            console.log('AFTER CLEAR - Storage Info:', getStorageInfo());
           }}
         >
           <Text style={styles.tempButtonText}>🗑️ Clear MMKV (Test)</Text>

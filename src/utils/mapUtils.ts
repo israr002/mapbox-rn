@@ -99,4 +99,91 @@ export const addInitialsToPolygons = (polygons: PolygonCollection): PolygonColle
       return feature;
     })
   };
+};
+
+/**
+ * Calculate the centroid of a polygon for positioning annotations
+ */
+export const getPolygonCentroid = (coordinates: number[][]): number[] => {
+  if (coordinates.length === 0) return [0, 0];
+  
+  let sumX = 0;
+  let sumY = 0;
+  let count = 0;
+  
+  // Calculate average of all coordinates (simple centroid)
+  coordinates.forEach(coord => {
+    if (coord.length >= 2) {
+      sumX += coord[0];
+      sumY += coord[1];
+      count++;
+    }
+  });
+  
+  if (count === 0) return [0, 0];
+  
+  return [sumX / count, sumY / count];
+};
+
+/**
+ * Generate mock livestock data for paddocks
+ */
+export const generateMockLivestockData = (polygons: PolygonCollection): import('./types').LivestockData[] => {
+  const livestockTypes: import('./types').LivestockType[] = ['cattle', 'sheep']; // Only cattle and sheep
+  const livestockStatuses: import('./types').LivestockStatus[] = ['healthy', 'attention', 'breeding', 'medication'];
+  
+  return polygons.features
+    .filter(feature => feature.properties?.type === 'paddock')
+    .map(feature => {
+      const randomCount = Math.floor(Math.random() * 600) + 20; // 20-620 animals
+      const randomType = livestockTypes[Math.floor(Math.random() * livestockTypes.length)];
+      const randomStatus = livestockStatuses[Math.floor(Math.random() * livestockStatuses.length)];
+      
+      return {
+        paddockId: feature.properties!.id,
+        count: randomCount,
+        type: randomType,
+        status: randomStatus,
+        lastUpdated: new Date().toISOString()
+      };
+    });
+};
+
+/**
+ * Create livestock annotations from paddock polygons and livestock data
+ */
+export const createLivestockAnnotations = (
+  polygons: PolygonCollection, 
+  livestockData: import('./types').LivestockData[]
+): import('./types').LivestockAnnotation[] => {
+  const livestockMap = new Map(livestockData.map(data => [data.paddockId, data]));
+  
+  return polygons.features
+    .filter(feature => feature.properties?.type === 'paddock')
+    .map(feature => {
+      const paddockId = feature.properties!.id;
+      const livestock = livestockMap.get(paddockId);
+      const centroid = getPolygonCentroid(feature.geometry.coordinates[0]);
+      
+      if (livestock) {
+        return {
+          id: `livestock_${paddockId}`,
+          paddockId,
+          coordinates: centroid,
+          count: livestock.count,
+          type: livestock.type,
+          status: livestock.status
+        };
+      }
+      
+      // Default if no livestock data
+      return {
+        id: `livestock_${paddockId}`,
+        paddockId,
+        coordinates: centroid,
+        count: 0,
+        type: 'cattle' as import('./types').LivestockType,
+        status: 'healthy' as import('./types').LivestockStatus
+      };
+    });
 }; 

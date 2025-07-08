@@ -19,7 +19,9 @@ import {
   PointCollection, 
   PaddockInfo, 
   PolygonFeature,
-  BottomMenuMode
+  BottomMenuMode,
+  LivestockData,
+  LivestockAnnotation as LivestockAnnotationType
 } from '../utils/types';
 import {
   isPointInPolygon, 
@@ -28,7 +30,9 @@ import {
   getPaddocksForFarm, 
   getPolygonVertices, 
   createClosedPolygon,
-  addInitialsToPolygons
+  addInitialsToPolygons,
+  generateMockLivestockData,
+  createLivestockAnnotations
 } from '../utils/mapUtils';
 import {
   loadAllData,
@@ -78,6 +82,10 @@ const HomeScreen: React.FC = () => {
   // Bottom menu state
   const [bottomMenuMode, setBottomMenuMode] = useState<BottomMenuMode | null>(null);
 
+  // Livestock state
+  const [livestockData, setLivestockData] = useState<LivestockData[]>([]);
+  const [livestockAnnotations, setLivestockAnnotations] = useState<LivestockAnnotationType[]>([]);
+
   // Load data from storage on component mount
   useEffect(() => {
     const loadStoredData = () => {
@@ -86,27 +94,27 @@ const HomeScreen: React.FC = () => {
         
         if (storedData.completedPolygons.features.length > 0) {
           setCompletedPolygons(storedData.completedPolygons);
-          console.log('📱 Loaded', storedData.completedPolygons.features.length, 'polygons from storage');
+          console.log('Loaded', storedData.completedPolygons.features.length, 'polygons from storage');
         }
         
         if (storedData.selectedFarmId) {
           setSelectedFarmId(storedData.selectedFarmId);
-          console.log('📱 Restored selected farm:', storedData.selectedFarmId);
+          console.log('Restored selected farm:', storedData.selectedFarmId);
         }
         
         if (storedData.appState !== 'initial') {
           setAppState(storedData.appState);
-          console.log('📱 Restored app state:', storedData.appState);
+          console.log('Restored app state:', storedData.appState);
         }
         
         if (storedData.bottomMenuMode) {
           setBottomMenuMode(storedData.bottomMenuMode);
-          console.log('📱 Restored bottom menu mode:', storedData.bottomMenuMode);
+          console.log('Restored bottom menu mode:', storedData.bottomMenuMode);
         }
         
-        console.log('✅ All data loaded from storage. Last saved:', storedData.lastSaved);
+        console.log('All data loaded from storage. Last saved:', storedData.lastSaved);
       } catch (error) {
-        console.error('❌ Error loading stored data:', error);
+        console.error('Error loading stored data:', error);
       }
     };
 
@@ -134,6 +142,33 @@ const HomeScreen: React.FC = () => {
   useEffect(() => {
     saveBottomMenuMode(bottomMenuMode);
   }, [bottomMenuMode]);
+
+  // Generate livestock data when paddocks change
+  useEffect(() => {
+    const paddocks = completedPolygons.features.filter(f => f.properties?.type === 'paddock');
+    if (paddocks.length > 0 && livestockData.length === 0) {
+      const mockData = generateMockLivestockData(completedPolygons);
+      setLivestockData(mockData);
+    }
+  }, [completedPolygons, livestockData.length]);
+
+  // Create livestock annotations when livestock data or polygons change
+  useEffect(() => {
+    if (livestockData.length > 0) {
+      const annotations = createLivestockAnnotations(completedPolygons, livestockData);
+      console.log('Created livestock annotations:', annotations.length);
+      annotations.forEach((annotation, index) => {
+        console.log(`Annotation ${index}:`, {
+          id: annotation.id,
+          count: annotation.count,
+          type: annotation.type,
+          status: annotation.status,
+          coordinates: annotation.coordinates
+        });
+      });
+      setLivestockAnnotations(annotations);
+    }
+  }, [completedPolygons, livestockData]);
 
   const startDrawingFarm = () => {
     setAppState('drawing-farm');
@@ -357,10 +392,12 @@ const HomeScreen: React.FC = () => {
             setSelectedPolygonId(null);
             setSelectedFarmId(null);
             setBottomMenuMode(null);
+            setLivestockData([]);
+            setLivestockAnnotations([]);
             
             // Clear storage
             clearAllData();
-            console.log('🗑️ Cleared all data from storage');
+            console.log('Cleared all data from storage');
           }
         }
       ]
@@ -479,6 +516,39 @@ const HomeScreen: React.FC = () => {
   // Prepare polygons with initials for map display
   const polygonsWithInitials = addInitialsToPolygons(completedPolygons);
 
+  // Create livestock data for SymbolLayer
+  const livestockPointsGeoJSON: PointCollection = {
+    type: 'FeatureCollection',
+    features: livestockAnnotations.map(annotation => {
+      const countStr = annotation.count.toString();
+      console.log('Livestock annotation:', {
+        id: annotation.id,
+        count: annotation.count,
+        countStr: countStr,
+        type: annotation.type,
+        coordinates: annotation.coordinates
+      });
+      return {
+        type: 'Feature',
+        properties: {
+          id: annotation.id,
+          count: countStr,
+          type: annotation.type,
+          status: annotation.status,
+          iconImage: annotation.type === 'cattle' ? 'livestock-cattle' : 'livestock-sheep',
+          statusColor: annotation.status === 'healthy' ? '#4CAF50' :
+                       annotation.status === 'attention' ? '#FF9800' :
+                       annotation.status === 'quarantine' ? '#F44336' :
+                       annotation.status === 'breeding' ? '#9C27B0' : '#2196F3'
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: annotation.coordinates
+        }
+      };
+    })
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ControlPanel
@@ -596,7 +666,7 @@ const HomeScreen: React.FC = () => {
                   textHaloColor: COLORS.WHITE,
                   textHaloWidth: 2,
                   textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                  textOffset: [0, 0],
+                  textOffset: [0, 2.0],
                   textAnchor: 'center',
                   textAllowOverlap: true,
                   textIgnorePlacement: true,
@@ -681,6 +751,65 @@ const HomeScreen: React.FC = () => {
                 }}
               />
             </ShapeSource>
+          )}
+
+          {/* Livestock Annotations */}
+          {appState === 'livestock-mode' && livestockPointsGeoJSON.features.length > 0 && (
+            <>
+              {/* Add livestock icons to map */}
+              <MapboxGL.Images
+                images={{
+                  'livestock-cattle': require('../assets/icons/cattle.png'),
+                  'livestock-sheep': require('../assets/icons/sheep.png'),
+                }}
+                onImageMissing={(imageKey) => {
+                  console.log('Missing image:', imageKey);
+                  return false;
+                }}
+              />
+              
+              <ShapeSource id="livestockPoints" shape={livestockPointsGeoJSON}>
+                {/* Background circles */}
+                <CircleLayer
+                  id="livestockCircles"
+                  style={{
+                    circleRadius: 25,
+                    circleColor: ['get', 'statusColor'],
+                    circleStrokeColor: '#FFFFFF',
+                    circleStrokeWidth: 3,
+                    circleOpacity: 0.9,
+                  }}
+                />
+                                {/* Animal icons */}
+                <SymbolLayer
+                  id="livestockIcons"
+                  style={{
+                    iconImage: ['get', 'iconImage'],
+                    iconSize: 0.10,
+                    iconOffset: [0, -18],
+                    iconAllowOverlap: true,
+                    iconIgnorePlacement: true,
+                  }}
+                />
+                
+                {/* Count numbers */}
+                <SymbolLayer
+                  id="livestockCounts"
+                  style={{
+                    textField: ['get', 'count'],
+                    textSize: 12,
+                    textColor: '#FFFFFF',
+                    textHaloColor: '#000000',
+                    textHaloWidth: 1,
+                    textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                    textOffset: [0, 1.2],
+                    textAnchor: 'center',
+                    textAllowOverlap: true,
+                    textIgnorePlacement: true,
+                  }}
+                />
+              </ShapeSource>
+            </>
           )}
         </MapView>
       </View>
